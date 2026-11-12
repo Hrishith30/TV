@@ -65,6 +65,29 @@ function findNext(current: HTMLElement, direction: Direction, scope: HTMLElement
   return best?.element ?? null;
 }
 
+function focusElement(element: HTMLElement, behavior: ScrollBehavior = 'smooth') {
+  element.focus({ preventScroll: true });
+  element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior });
+}
+
+/** First thing a remote should land on: real content before chrome. */
+function firstTarget(container: HTMLElement) {
+  return (
+    container.querySelector<HTMLElement>('.grid button, .picker-row, .list-row') ??
+    container.querySelector<HTMLElement>(FOCUSABLE)
+  );
+}
+
+function scrollableAncestor(from: HTMLElement | null) {
+  let node = from?.parentElement ?? null;
+  while (node) {
+    const style = window.getComputedStyle(node);
+    if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight - node.clientHeight > 4) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 /**
  * D-pad / keyboard navigation for TVs. A scoped instance (root provided) only
  * acts while focus lives inside its container, so overlays own their own keys.
@@ -90,22 +113,49 @@ export function useSpatialNav(enabled = true, root?: RefObject<HTMLElement | nul
 
       const container = scope ?? document.body;
 
-      if (!active || active === document.body) {
-        const first = container.querySelector<HTMLElement>(FOCUSABLE);
+      if (!active || active === document.body || active === document.documentElement) {
+        const first = container === document.body
+          ? (document.querySelector<HTMLElement>('.grid button, .picker-row') ?? firstTarget(container))
+          : firstTarget(container);
         if (first) {
           event.preventDefault();
-          first.focus({ preventScroll: true });
-          first.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          focusElement(first, 'auto');
         }
         return;
       }
 
       const next = findNext(active, direction, container);
-      if (!next) return;
+      if (next) {
+        event.preventDefault();
+        focusElement(next);
+        return;
+      }
 
+      // Sidebar is a dead end for a remote: step into the content instead.
+      if (!scope && (direction === 'right' || direction === 'down')) {
+        const content = document.querySelector<HTMLElement>('.view');
+        if (content && !content.contains(active)) {
+          const target = firstTarget(content);
+          if (target) {
+            event.preventDefault();
+            focusElement(target, 'auto');
+            return;
+          }
+        }
+      }
+
+      // Nothing ahead spatially, so scroll the list itself. Without this the
+      // focus ring parks on the last visible row and the list never moves.
+      const scroller = scrollableAncestor(active);
+      if (!scroller) return;
+      if (direction === 'down' || direction === 'up') {
+        const step = scroller.clientHeight * 0.7 * (direction === 'down' ? 1 : -1);
+        scroller.scrollBy({ top: step, behavior: 'smooth' });
+      } else {
+        const step = scroller.clientWidth * 0.7 * (direction === 'right' ? 1 : -1);
+        scroller.scrollBy({ left: step, behavior: 'smooth' });
+      }
       event.preventDefault();
-      next.focus({ preventScroll: true });
-      next.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     };
 
     window.addEventListener('keydown', onKeyDown);
