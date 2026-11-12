@@ -14,10 +14,17 @@ type SidebarProps = {
   onSettings: () => void;
   account: LoginResponse | null;
   error: string | null;
+  connecting: boolean;
 };
 
-export function Sidebar({ tab, onTab, onSettings, account, error }: SidebarProps) {
+export function Sidebar({ tab, onTab, onSettings, account, error, connecting }: SidebarProps) {
   const info = account?.user_info;
+  const label = account?.user_info.username ?? (connecting ? 'Connecting…' : 'Not signed in');
+  const caption = account
+    ? `Until ${formatExpiry(info?.exp_date)}`
+    : connecting
+      ? 'Contacting server'
+      : 'Add credentials';
 
   return (
     <aside className="sidebar">
@@ -61,8 +68,8 @@ export function Sidebar({ tab, onTab, onSettings, account, error }: SidebarProps
           <div className="account-card">
             <span className="account-dot" />
             <div className="account-meta">
-              <strong>{info?.username ?? 'Connecting…'}</strong>
-              <small>{info ? `Until ${formatExpiry(info.exp_date)}` : 'Contacting server'}</small>
+              <strong>{label}</strong>
+              <small>{caption}</small>
             </div>
           </div>
         )}

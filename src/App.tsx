@@ -63,6 +63,7 @@ export default function App() {
         onSettings={() => setSettingsOpen(true)}
         account={account}
         error={connectionError}
+        connecting={connecting}
       />
 
       <main className="main">
