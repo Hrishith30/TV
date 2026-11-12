@@ -6,8 +6,8 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': '*/*' };
-    try { headers.Referer = new URL(target).origin + '/'; } catch {}
+    // No Referer: some panels 401 proxied video when Referer is present/forged.
+    const headers = { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20', 'Accept': '*/*' };
     if (req.headers.range) headers.Range = req.headers.range;
     const upstream = await fetch(target, { headers, redirect: 'follow' });
     if (!upstream.ok && upstream.status !== 206) {
