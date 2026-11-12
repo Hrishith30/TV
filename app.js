@@ -163,12 +163,67 @@ function playableUrl(url){
     return '/api/proxy?target=' + encodeURIComponent(url);
   return url;
 }
-function playUrl(url){
+function httpsCandidates(httpUrl){
+  // Same host/path over HTTPS ports providers commonly use (browser direct = home IP)
+  try{
+    const u = new URL(httpUrl);
+    const path = u.pathname + u.search;
+    const out = [];
+    for(const p of [u.port, '443', '2083', '2096']){
+      if(!p) continue;
+      const c = 'https://' + u.hostname + ':' + p + path;
+      if(!out.includes(c)) out.push(c);
+    }
+    return out;
+  }catch{ return []; }
+}
+async function probeDirectHttps(httpUrl){
+  // Browser-direct probe (home IP). HLS needs CORS anyway, so a readable playlist = playable.
+  for(const c of httpsCandidates(httpUrl)){
+    try{
+      const ctl = new AbortController();
+      const t = setTimeout(()=>ctl.abort(), 5000);
+      const r = await fetch(c, { signal: ctl.signal });
+      clearTimeout(t);
+      if(!r.ok) continue;
+      const txt = await r.text();
+      if(txt.includes('#EXTM3U')) return c;
+    }catch{ /* try next port */ }
+  }
+  return null;
+}
+function playMp4List(v, list, idx){
+  if(idx >= list.length){
+    $('playerError').textContent='All video routes failed (direct HTTPS + proxy 401). Provider blocks cloud video — use http:// LAN or ask for an HTTPS host.';
+    return;
+  }
+  v.onerror = ()=>playMp4List(v, list, idx+1);
+  v.onloadeddata = ()=>{ $('playerError').textContent=''; };
+  v.src = list[idx];
+  v.play().catch(()=>{});
+}
+async function playUrl(origUrl){
   stopStream();
   $('playerError').textContent='';
   const v = $('video');
-  url = playableUrl(url);
   v.poster = '';
+  v.onerror = null; v.onloadeddata = null;
+  const viaProxyNeeded = location.protocol==='https:' && /^http:\/\//i.test(origUrl) && location.hostname!=='';
+  if(viaProxyNeeded){
+    if(origUrl.includes('.m3u8')){
+      $('playerError').textContent='Finding direct HTTPS stream…';
+      const direct = await probeDirectHttps(origUrl);
+      if(direct){ $('playerError').textContent=''; startPlayback(direct, v); return; }
+      $('playerError').textContent='';
+    } else {
+      // MP4 needs no CORS for <video>: try HTTPS ports directly, proxy last
+      playMp4List(v, [...httpsCandidates(origUrl), playableUrl(origUrl)], 0);
+      return;
+    }
+  }
+  startPlayback(playableUrl(origUrl), v);
+}
+function startPlayback(url, v){
   if(url.includes('.m3u8') && window.Hls && Hls.isSupported()){
     const hls = new Hls({maxBufferLength:30, fragLoadingMaxRetry:6, manifestLoadingMaxRetry:2, levelLoadingMaxRetry:4, fragLoadingRetryDelay:800, manifestLoadingRetryDelay:800, timeout:25000});
     state.hls = hls;
@@ -203,9 +258,9 @@ function playUrl(url){
     });
     v.play().catch(()=>{});
   } else if(url.includes('.m3u8')){
-    v.src = url; v.play().catch(e=>{ $('playerError').textContent='Cannot play: '+e.message; });
+    playMp4List(v, [url], 0);
   } else {
-    v.src = url; v.play().catch(e=>{ $('playerError').textContent='Cannot play: '+e.message; });
+    playMp4List(v, [url], 0);
   }
 }
 async function openPlayer(s){
