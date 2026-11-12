@@ -16,10 +16,19 @@ function cleanServer(u){
 function apiUrl(params){
   return state.server + '/player_api.php?username=' + encodeURIComponent(state.user) + '&password=' + encodeURIComponent(state.pass) + '&' + params;
 }
+function fetchUrl(url){
+  if(state.useProxy) return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+  return url;
+}
 async function api(params){
-  const res = await fetch(apiUrl(params));
+  const res = await fetch(fetchUrl(apiUrl(params)));
   if(!res.ok) throw new Error('HTTP ' + res.status);
   return res.json();
+}
+function friendlyFetchError(){
+  if(location.protocol === 'https:' && state.server.startsWith('http://'))
+    return 'Browser blocked HTTP server on this HTTPS page (mixed content). Tick "Use CORS proxy" and retry, or ask your provider for an HTTPS host.';
+  return 'Browser blocked the request (CORS). Tick "Use CORS proxy" and retry.';
 }
 function streamUrl(s){
   const base = state.server;
@@ -44,6 +53,7 @@ async function login(){
   state.server = cleanServer($('serverUrl').value);
   state.user = $('username').value.trim();
   state.pass = $('password').value;
+  state.useProxy = $('useProxy') ? $('useProxy').checked : false;
   if(!state.server || !state.user || !state.pass){ err.textContent = 'Please fill server, username and password.'; return; }
   $('loginBtn').textContent = 'Connecting...'; $('loginBtn').disabled = true;
   try{
@@ -53,7 +63,7 @@ async function login(){
       const d = new Date(info.user_info.exp_date*1000);
       $('statusBar').textContent = 'Account: ' + info.user_info.username + ' | Expires: ' + d.toLocaleDateString();
     }
-    if($('remember').checked) localStorage.setItem('iptv_login', JSON.stringify({s:state.server,u:state.user,p:state.pass}));
+    if($('remember').checked) localStorage.setItem('iptv_login', JSON.stringify({s:state.server,u:state.user,p:state.pass,x:state.useProxy?1:0}));
     else localStorage.removeItem('iptv_login');
     $('loginScreen').classList.remove('active');
     $('appScreen').classList.add('active');
@@ -61,7 +71,8 @@ async function login(){
     await loadSection('live');
   }catch(e){
     console.error(e);
-    err.textContent = 'Login failed: ' + e.message;
+    const msg = String((e && e.message) || e);
+    err.textContent = 'Login failed: ' + (/failed to fetch/i.test(msg) ? friendlyFetchError() + ' (' + msg + ')' : msg);
   }finally{
     $('loginBtn').textContent = 'Connect & Load'; $('loginBtn').disabled = false;
   }
@@ -253,7 +264,7 @@ function handleTvArrows(e){
 }
 window.addEventListener('DOMContentLoaded', ()=>{
   const saved = localStorage.getItem('iptv_login');
-  if(saved){ try{ const o=JSON.parse(saved); $('serverUrl').value=o.s||''; $('username').value=o.u||''; $('password').value=o.p||''; }catch{} }
+  if(saved){ try{ const o=JSON.parse(saved); $('serverUrl').value=o.s||''; $('username').value=o.u||''; $('password').value=o.p||''; if($('useProxy')) $('useProxy').checked=!!o.x; }catch{} }
   $('loginBtn').onclick = login;
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>loadSection(b.dataset.type));
   $('search').oninput = (e)=>{ state.query=e.target.value.trim(); renderGrid(); };
