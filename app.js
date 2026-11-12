@@ -183,8 +183,9 @@ function playUrl(url){
         nativeFallbackDone = true;
         try{ hls.destroy(); }catch{}
         state.hls = null;
-        v.src = url; v.play().catch(()=>{});
-        $('playerError').textContent='Retrying with native player… (frag failed'+(code?' HTTP '+code:'')+')';
+        v.src = url;
+        v.onerror = ()=>{ $('playerError').textContent='Native player also blocked (HTTP 401). Provider rejects video from this host — use http:// LAN (npx serve) or ask provider for an HTTPS host for direct playback.'; };
+        v.play().then(()=>{ $('playerError').textContent=''; }).catch(()=>{ $('playerError').textContent='Retrying with native player… (frag failed'+(code?' HTTP '+code:'')+')'; });
         return;
       }
       $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||'')+(code?' (HTTP '+code+')':'')+'. Checking reason…';
