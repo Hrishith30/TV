@@ -32,6 +32,7 @@ async function handleProxy(req, res, target) {
     const upstream = await fetch(target, { headers, redirect: 'follow' });
     const ct = upstream.headers.get('content-type') || '';
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
     const isHls = /mpegurl|m3u8/i.test(ct) || /\.m3u8(\?|$)/i.test(target);
     if (isHls) {
       let text = await upstream.text();
@@ -74,6 +75,17 @@ async function handleProxy(req, res, target) {
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
+  // CORS: the page may be served from another origin (e.g. GitHub Pages)
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Max-Age': '86400',
+    });
+    res.end();
+    return;
+  }
   if (u.pathname === '/api/proxy') {
     handleProxy(req, res, u.searchParams.get('target'));
     return;

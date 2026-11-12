@@ -25,6 +25,10 @@
     <label>Password
       <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
     </label>
+    <label>Proxy URL (optional)
+      <input id="proxyUrl" type="url" inputmode="url" placeholder="https://your-proxy.example.com" autocomplete="off" />
+    </label>
+    <p class="field-note">GitHub Pages is static and can't run <code>/api/proxy</code>. If your provider is HTTP-only, point this at an HTTPS address that does (see README). Leave empty otherwise.</p>
     <label class="row check">
       <input id="remember" type="checkbox" checked /> Remember me on this device
     </label>
@@ -33,7 +37,7 @@
     <details class="hint">
       <summary>Where do I find these?</summary>
       <p>From your IPTV provider you get 3 things: a <b>Server URL / Host / Portal</b> (e.g. <code>http://line.example.com:8080</code>), a <b>Username</b> and a <b>Password</b>. Paste them exactly. No playlist file needed.</p>
-      <p>If login fails with a network error, make sure the Server URL includes http:// or https:// and the correct port, or host this file on the same domain as your provider.</p>
+      <p>If login fails with a network error, make sure the Server URL includes http:// or https:// and the correct port. If you host this on GitHub Pages and your provider only speaks HTTP, set the Proxy URL as described in the README.</p>
     </details>
   </div>
 </div>

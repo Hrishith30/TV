@@ -1,7 +1,7 @@
 /* Simple IPTV Player - Xtream Codes API (vanilla JS) */
 const $ = (id) => document.getElementById(id);
 const state = {
-  server: '', user: '', pass: '',
+  server: '', user: '', pass: '', proxy: '',
   type: 'live', cats: [], streams: [],
   activeCat: 'all', favOnly: false, query: '', catQuery: '',
   current: null, hls: null,
@@ -13,28 +13,86 @@ function cleanServer(u){
   if(!/^https?:\/\//i.test(u)) u = 'http://' + u;
   return u.replace(/\/+$/,'');
 }
+function cleanProxy(u){
+  u = (u||'').trim();
+  if(!u) return '';
+  if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u.replace(/\/+$/,'');
+}
+// Same-origin /api/proxy only exists on Vercel / local_proxy_server.js; static hosts have none.
+function sameOriginProxyPossible(){
+  return location.protocol.startsWith('http') && !/\.github\.io$/i.test(location.hostname) && !/\.pages\.dev$/i.test(location.hostname);
+}
+function proxyTarget(target){ return (state.proxy || '') + '/api/proxy?target=' + encodeURIComponent(target); }
+function httpsBase(url){ try{ const u = new URL(url); return u.protocol + '//' + u.host; }catch{ return null; } }
+function proxyErrorText(body, status){
+  let msg = String(body || '').slice(0, 160);
+  try{ const j = JSON.parse(body); msg = String(j.body || j.error || msg).slice(0, 160); }catch{}
+  return 'HTTP ' + status + (msg ? ' — ' + msg : '');
+}
+function mixedContentHint(){
+  return 'This page is HTTPS but the stream is HTTP, so the browser blocks it. Put a Proxy URL on the login screen (an HTTPS address that runs /api/proxy, e.g. a Cloudflare Tunnel to local_proxy_server.js) or ask your provider for an HTTPS host.';
+}
+async function loadProxyConfig(){
+  // Optional: proxy-config.json next to index.html sets a default Proxy URL for this deployment.
+  try{
+    const r = await fetch('proxy-config.json', { cache: 'no-store' });
+    if(!r.ok) return '';
+    const j = await r.json();
+    return cleanProxy(j && j.proxy);
+  }catch{ return ''; }
+}
+async function probeApiHttps(target){
+  // HTTPS page + HTTP provider: try the panel's own HTTPS ports (no proxy needed if one answers).
+  const tries = httpsCandidates(target).map((c)=>(async()=>{
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), 4000);
+    try{
+      const r = await fetch(c, { signal: ctl.signal });
+      clearTimeout(t);
+      if(!r.ok) return null;
+      const base = httpsBase(c);
+      if(!base) return null;
+      return { base, json: await r.json() };
+    }catch{ clearTimeout(t); return null; }
+  })());
+  const results = await Promise.all(tries);
+  return results.find(Boolean) || null;
+}
 function apiUrl(params){
   return state.server + '/player_api.php?username=' + encodeURIComponent(state.user) + '&password=' + encodeURIComponent(state.pass) + '&' + params;
 }
 async function api(params){
   const target = apiUrl(params);
-  // 1) Same-origin Vercel proxy (works on Vercel hosting, no checkbox needed)
-  if(location.protocol.startsWith('http') && location.hostname !== ''){
+  const errs = [];
+  // 1) Proxy: explicit Proxy URL first, then same-origin /api/proxy (Vercel, local_proxy_server.js)
+  const bases = state.proxy ? [state.proxy] : [];
+  if(sameOriginProxyPossible()) bases.push('');
+  for(const base of bases){
     try{
-      const pRes = await fetch('/api/proxy?target=' + encodeURIComponent(target));
-      if(pRes.ok) return await pRes.json();
-    }catch{}
+      const r = await fetch((base || '') + '/api/proxy?target=' + encodeURIComponent(target));
+      if(!r.ok) throw new Error(proxyErrorText(await r.text().catch(()=> ''), r.status));
+      return await r.json();
+    }catch(e){ errs.push((base || 'same-origin') + ' → ' + e.message); }
   }
-  // 2) Direct (works for file:// and http:// LAN use)
-  try{
-    const res = await fetch(target);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
-  }catch(e){
-    if(location.protocol === 'https:' && state.server.startsWith('http://'))
-      throw new Error('This HTTPS site cannot reach your HTTP provider directly. Redeploy this commit on Vercel so /api/proxy handles it, or use an HTTPS host from your provider.');
-    throw e;
+  if(location.protocol === 'https:' && /^http:\/\//i.test(target)){
+    // 2) Mixed content: try the provider's own HTTPS ports before giving up
+    const hit = await probeApiHttps(target);
+    if(hit){ state.server = hit.base; return hit.json; }
+    errs.push('provider has no working HTTPS port');
+  } else {
+    // 3) Direct: works for file://, http:// LAN, and HTTPS providers that allow CORS
+    try{
+      const r = await fetch(target);
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    }catch(e){ errs.push('direct → ' + e.message); }
   }
+  let hint;
+  if(state.proxy) hint = 'Could not load the API through the proxy ' + state.proxy + ' (is it running and serving /api/proxy?).';
+  else if(location.protocol === 'https:' && /^http:\/\//i.test(target)) hint = 'This page is HTTPS and the provider is HTTP, so the browser blocks it. Fill in the optional Proxy URL (an HTTPS address running /api/proxy) or use an HTTPS host from your provider.';
+  else hint = 'Could not reach ' + state.server + ' — check the URL, the port, and that the panel is online.';
+  throw new Error(hint + (errs.length ? ' [' + errs[errs.length-1] + ']' : ''));
 }
 function streamUrl(s){
   const base = state.server;
@@ -59,6 +117,7 @@ async function login(){
   state.server = cleanServer($('serverUrl').value);
   state.user = $('username').value.trim();
   state.pass = $('password').value;
+  state.proxy = cleanProxy($('proxyUrl') ? $('proxyUrl').value : '');
   if(!state.server || !state.user || !state.pass){ err.textContent = 'Please fill server, username and password.'; return; }
   $('loginBtn').textContent = 'Connecting...'; $('loginBtn').disabled = true;
   try{
@@ -68,7 +127,7 @@ async function login(){
       const d = new Date(info.user_info.exp_date*1000);
       $('statusBar').textContent = 'Account: ' + info.user_info.username + ' | Expires: ' + d.toLocaleDateString();
     }
-    if($('remember').checked) localStorage.setItem('iptv_login', JSON.stringify({s:state.server,u:state.user,p:state.pass}));
+    if($('remember').checked) localStorage.setItem('iptv_login', JSON.stringify({s:state.server,u:state.user,p:state.pass,x:state.proxy}));
     else localStorage.removeItem('iptv_login');
     $('loginScreen').classList.remove('active');
     $('appScreen').classList.add('active');
@@ -157,12 +216,6 @@ function stopStream(){
   try{ if(state.hls){ state.hls.destroy(); state.hls=null; } }catch{}
   v.pause(); v.removeAttribute('src'); v.load();
 }
-function playableUrl(url){
-  // HTTPS site + HTTP stream = blocked; route via own Vercel proxy (rewrites HLS + ranges)
-  if(location.protocol === 'https:' && /^http:\/\//i.test(url) && location.hostname !== '')
-    return '/api/proxy?target=' + encodeURIComponent(url);
-  return url;
-}
 function httpsCandidates(httpUrl){
   // Same host/path over HTTPS ports providers commonly use (browser direct = home IP)
   try{
@@ -204,7 +257,7 @@ function b64(s){
 }
 function playMp4List(v, list, idx){
   if(idx >= list.length){
-    $('playerError').textContent='All video routes failed (direct HTTPS + proxy 401). Provider blocks cloud video — use http:// LAN or ask for an HTTPS host.';
+    $('playerError').textContent='All video routes failed. Check the Proxy URL (it must be an HTTPS address that runs /api/proxy), or ask your provider for an HTTPS host.';
     return;
   }
   v.onerror = ()=>playMp4List(v, list, idx+1);
@@ -218,20 +271,25 @@ async function playUrl(origUrl){
   const v = $('video');
   v.poster = '';
   v.onerror = null; v.onloadeddata = null;
-  const viaProxyNeeded = location.protocol==='https:' && /^http:\/\//i.test(origUrl) && location.hostname!=='';
-  if(viaProxyNeeded){
-    if(origUrl.includes('.m3u8')){
-      $('playerError').textContent='Finding direct HTTPS stream…';
-      const direct = await probeDirectHttps(origUrl);
-      if(direct){ $('playerError').textContent=''; startPlayback(direct, v); return; }
-      $('playerError').textContent='';
-    } else {
-      // MP4 needs no CORS for <video>: try HTTPS ports directly, proxy last
-      playMp4List(v, [...httpsCandidates(origUrl), playableUrl(origUrl)], 0);
-      return;
-    }
+  // HTTPS page + HTTP stream = mixed content; try the provider's HTTPS ports, then the proxy
+  if(!(location.protocol==='https:' && /^http:\/\//i.test(origUrl))){
+    startPlayback(origUrl, v);
+    return;
   }
-  startPlayback(playableUrl(origUrl), v);
+  if(/\.m3u8(\?|$)/i.test(origUrl)){
+    $('playerError').textContent='Finding direct HTTPS stream…';
+    const direct = await probeDirectHttps(origUrl);
+    $('playerError').textContent='';
+    if(direct){ startPlayback(direct, v); return; }
+    if(state.proxy){ startPlayback(proxyTarget(origUrl), v); return; }
+    $('playerError').textContent = mixedContentHint();
+    return;
+  }
+  // MP4 needs no CORS for <video>: try HTTPS ports directly, proxy last
+  const list = httpsCandidates(origUrl);
+  if(state.proxy) list.push(proxyTarget(origUrl));
+  if(list.length){ playMp4List(v, list, 0); return; }
+  $('playerError').textContent = mixedContentHint();
 }
 function startPlayback(url, v){
   if(url.includes('.m3u8') && window.Hls && Hls.isSupported()){
@@ -249,7 +307,7 @@ function startPlayback(url, v){
         try{ hls.destroy(); }catch{}
         state.hls = null;
         v.src = url;
-        v.onerror = ()=>{ $('playerError').textContent='Native player also blocked (HTTP 401). Provider rejects video from this host — use http:// LAN (npx serve) or ask provider for an HTTPS host for direct playback.'; };
+        v.onerror = ()=>{ $('playerError').textContent='Native player also blocked'+(code?' (HTTP '+code+')':'')+'. Set the Proxy URL or use your provider\'s HTTPS host.'; };
         v.play().then(()=>{ $('playerError').textContent=''; }).catch(()=>{ $('playerError').textContent='Retrying with native player… (frag failed'+(code?' HTTP '+code:'')+')'; });
         return;
       }
@@ -369,9 +427,14 @@ function handleTvArrows(e){
     else if(cards[0]) cards[0].focus();
   }
 }
-window.addEventListener('DOMContentLoaded', ()=>{
+window.addEventListener('DOMContentLoaded', async ()=>{
+  // Proxy precedence: ?proxy= in the URL > saved login > proxy-config.json next to index.html
   const saved = localStorage.getItem('iptv_login');
-  if(saved){ try{ const o=JSON.parse(saved); $('serverUrl').value=o.s||''; $('username').value=o.u||''; $('password').value=o.p||''; }catch{} }
+  if(saved){ try{ const o=JSON.parse(saved); $('serverUrl').value=o.s||''; $('username').value=o.u||''; $('password').value=o.p||''; state.proxy = cleanProxy(o.x); }catch{} }
+  const fromUrl = new URLSearchParams(location.search).get('proxy');
+  if(fromUrl) state.proxy = cleanProxy(fromUrl);
+  if(!state.proxy) state.proxy = await loadProxyConfig();
+  $('proxyUrl').value = state.proxy;
   $('loginBtn').onclick = login;
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>loadSection(b.dataset.type));
   $('search').oninput = (e)=>{ state.query=e.target.value.trim(); renderGrid(); };

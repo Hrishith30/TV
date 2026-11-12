@@ -29,6 +29,7 @@ input:focus{border-color:var(--accent)}
 .btn:focus,.tab:focus,.card:focus,.icon-btn:focus{outline:3px solid #ffd166;outline-offset:2px}
 .error{color:#ff7b7b;min-height:20px;font-size:14px}.center{text-align:center}
 .hint{margin-top:12px;color:var(--muted);font-size:14px}code{background:#222;padding:2px 6px;border-radius:6px}
+.field-note{margin:-8px 0 12px;font-size:13px;line-height:1.45;color:var(--muted)}
 /* APP LAYOUT - fixed header, independent scroll areas, no double scrollbar */
 #appScreen.active{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
 .topbar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 12px;background:#000;border-bottom:1px solid var(--line);z-index:20}
