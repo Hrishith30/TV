@@ -24,6 +24,7 @@ export type ParsedPlaylist = {
 };
 
 const STORAGE_KEY = 'novatv.playlists';
+const PROXY_KEY = 'novatv.playlistProxy';
 
 export function loadPlaylists(): SavedPlaylist[] {
   try {
@@ -40,6 +41,25 @@ export function loadPlaylists(): SavedPlaylist[] {
 export function savePlaylists(playlists: SavedPlaylist[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
+  } catch {
+    /* storage can be unavailable on locked-down TV browsers */
+  }
+}
+
+/** Optional relay address; empty means playlists are downloaded straight from the link. */
+export function loadPlaylistProxy() {
+  try {
+    return localStorage.getItem(PROXY_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function savePlaylistProxy(value: string) {
+  try {
+    const trimmed = value.trim().replace(/\/+$/, '');
+    if (trimmed) localStorage.setItem(PROXY_KEY, trimmed);
+    else localStorage.removeItem(PROXY_KEY);
   } catch {
     /* storage can be unavailable on locked-down TV browsers */
   }
@@ -169,14 +189,11 @@ export function nameFromFile(fileName: string) {
   return base || 'Imported playlist';
 }
 
-export async function fetchPlaylist(link: string): Promise<{ parsed: ParsedPlaylist; url: string }> {
-  const url = normalizeLink(link);
-  if (!url) throw new Error('Paste a playlist link first.');
-
+async function download(target: string, base: string): Promise<ParsedPlaylist> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), 45000);
   try {
-    const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+    const response = await fetch(target, { signal: controller.signal, cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`That link replied with status ${response.status}. Check it opens in a browser tab.`);
     }
@@ -185,23 +202,50 @@ export async function fetchPlaylist(link: string): Promise<{ parsed: ParsedPlayl
     if (!/#EXTM3U|#EXTINF|#EXT-X/i.test(text)) {
       throw new Error('That link is not an M3U playlist.');
     }
-    const parsed = parsePlaylist(text, response.url || url);
+    const parsed = parsePlaylist(text, response.url || base);
     if (parsed.kind === 'channels' && parsed.channels.length === 0) {
       throw new Error('No playable channels were found in that playlist.');
     }
-    return { parsed, url };
+    return parsed;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error('That playlist link took too long to respond.');
     }
-    if (error instanceof TypeError) {
-      throw new Error(
-        'Could not download that playlist. The site may block browser downloads (CORS) or the link is offline.',
-      );
-    }
     throw error;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** Wraps a link for the relay, which returns it with CORS headers attached. */
+export function viaProxy(proxy: string, link: string) {
+  return `${proxy.trim().replace(/\/+$/, '')}/?url=${encodeURIComponent(link)}`;
+}
+
+export async function fetchPlaylist(
+  link: string,
+  proxy = '',
+): Promise<{ parsed: ParsedPlaylist; url: string }> {
+  const url = normalizeLink(link);
+  if (!url) throw new Error('Paste a playlist link first.');
+
+  try {
+    return { parsed: await download(url, url), url };
+  } catch (error) {
+    // A TypeError here almost always means the browser blocked a CORS-less host,
+    // so retry through the relay when one is configured.
+    if (!(error instanceof TypeError)) throw error;
+    if (!proxy.trim()) {
+      throw new Error(
+        'Could not download that playlist: the host does not allow browser downloads (CORS). Add a playlist proxy below, or open a saved .m3u file.',
+      );
+    }
+    try {
+      return { parsed: await download(viaProxy(proxy, url), url), url };
+    } catch (relayError) {
+      const detail = relayError instanceof Error ? relayError.message : String(relayError);
+      throw new Error(`Neither the link nor your playlist proxy could deliver it. ${detail}`);
+    }
   }
 }
 
