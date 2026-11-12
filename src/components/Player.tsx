@@ -29,6 +29,7 @@ export function Player({ items, startIndex, onClose }: PlayerProps) {
   const [duration, setDuration] = useState(0);
   const [controls, setControls] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [slow, setSlow] = useState(false);
 
   const bump = useCallback(() => {
     setControls(true);
@@ -124,6 +125,16 @@ export function Player({ items, startIndex, onClose }: PlayerProps) {
     video.volume = volume;
     video.muted = muted;
   }, [volume, muted]);
+
+  // Endless spinner is useless: say what is likely wrong after a few seconds.
+  useEffect(() => {
+    if (!buffering || error) {
+      setSlow(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSlow(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [buffering, error, current.url]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -245,6 +256,32 @@ export function Player({ items, startIndex, onClose }: PlayerProps) {
       )}
 
       {buffering && !error && <div className="player-spinner" aria-label="Buffering" />}
+
+      {slow && buffering && !error && (
+        <div className="player-stall">
+          <h3>Still buffering…</h3>
+          <p>
+            The stream is not arriving fast enough. This usually means the channel is heavy for your connection
+            (4K/HD channels need a lot of bandwidth), the channel is offline, or another device is already using your
+            single allowed connection.
+          </p>
+          <div className="detail-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setSlow(false);
+                setAttempt((value) => value + 1);
+              }}
+            >
+              <Icon name="retry" size={18} /> Reload stream
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={close}>
+              Pick another channel
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="player-error">
