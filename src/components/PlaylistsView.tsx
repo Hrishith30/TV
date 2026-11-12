@@ -3,13 +3,11 @@ import type { Category, PlayItem } from '../types';
 import {
   channelToItem,
   fetchPlaylist,
-  loadPlaylistProxy,
   loadPlaylists,
   nameFromFile,
   nameFromLink,
   normalizeLink,
   parsePlaylistText,
-  savePlaylistProxy,
   savePlaylists,
   type PlaylistChannel,
   type SavedPlaylist,
@@ -39,7 +37,6 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState('all');
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [proxy, setProxy] = useState(loadPlaylistProxy);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -59,7 +56,7 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
       try {
         const parsed = playlist.text
           ? parsePlaylistText(playlist.text, playlist.name)
-          : (await fetchPlaylist(playlist.url, proxy)).parsed;
+          : (await fetchPlaylist(playlist.url)).parsed;
         setChannels(parsed.channels);
         if (parsed.kind === 'stream' || playStream) {
           onPlay(parsed.channels.map(channelToItem), 0);
@@ -78,7 +75,7 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
         setLoading(false);
       }
     },
-    [onPlay, proxy],
+    [onPlay],
   );
 
   const add = useCallback(async () => {
@@ -97,7 +94,7 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
     setLoading(true);
     setError(null);
     try {
-      const { parsed } = await fetchPlaylist(url, proxy);
+      const { parsed } = await fetchPlaylist(url);
       const entry: SavedPlaylist = {
         id: newId(),
         name: nameFromLink(url),
@@ -116,7 +113,7 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [link, open, onPlay, proxy, remember, saved]);
+  }, [link, open, onPlay, remember, saved]);
 
   const importFile = useCallback(
     async (file: File) => {
@@ -291,27 +288,6 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
         </button>
         <small>Downloaded the playlist already? Open it here — files on your device skip browser CORS.</small>
       </div>
-
-      <details className="playlist-proxy" open={!proxy}>
-        <summary>Playlist proxy (for links that refuse browser downloads)</summary>
-        <input
-          type="text"
-          value={proxy}
-          onChange={(event) => {
-            setProxy(event.target.value);
-            savePlaylistProxy(event.target.value);
-          }}
-          placeholder="http://192.168.1.20:8787"
-          aria-label="Playlist proxy address"
-          spellCheck={false}
-          autoCapitalize="none"
-          autoCorrect="off"
-        />
-        <small>
-          Run <code>node scripts/playlist-proxy.mjs</code> on a machine that can open the link, then paste its
-          address here. Links are retried through it only when the browser blocks them.
-        </small>
-      </details>
 
       {error && (
         <p className="playlist-error" role="alert">

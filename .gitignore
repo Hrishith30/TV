@@ -6,4 +6,3 @@ dev.log
 *.bin
 *.m3u8
 seg*.ts
-proxy.log
