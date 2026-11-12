@@ -144,4 +144,4 @@ export type PlayItem = {
   hls: boolean;
 };
 
-export type Tab = 'live' | 'movies' | 'series';
+export type Tab = 'live' | 'movies' | 'series' | 'lists';
