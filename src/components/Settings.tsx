@@ -39,6 +39,7 @@ export function Settings({ config, account, connectionError, onSave, onClose }: 
   };
 
   const info = account?.user_info;
+  const insecureOnHttps = window.location.protocol === 'https:' && /^http:/i.test(url.trim());
 
   return (
     <div className="overlay modal" role="dialog" aria-modal="true" aria-label="Account settings">
@@ -84,6 +85,13 @@ export function Settings({ config, account, connectionError, onSave, onClose }: 
             spellCheck={false}
           />
         </div>
+
+        {insecureOnHttps && (
+          <p className="form-error">
+            This page is served over HTTPS, so the browser will block the plain-HTTP provider. Serve the app over HTTP
+            or use an HTTPS provider address.
+          </p>
+        )}
 
         {formError && <p className="form-error">{formError}</p>}
         {connectionError && <p className="form-error">{connectionError}</p>}

@@ -9,10 +9,14 @@ import type {
   VodStream,
 } from './types';
 
+/**
+ * Optional defaults come from a local .env.local file so that a public build
+ * (GitHub Pages) never ships anyone's subscription credentials.
+ */
 export const DEFAULT_CONFIG: ApiConfig = {
-  url: 'http://ifbxrfkj.novatv.xyz:80',
-  username: '2Z6MCPN',
-  password: 'SBXTHBD',
+  url: import.meta.env.VITE_IPTV_SERVER ?? '',
+  username: import.meta.env.VITE_IPTV_USER ?? '',
+  password: import.meta.env.VITE_IPTV_PASS ?? '',
 };
 
 const STORAGE_KEY = 'novatv.config';

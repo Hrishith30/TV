@@ -17,6 +17,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('live');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playback, setPlayback] = useState<{ items: PlayItem[]; index: number } | null>(null);
+  const hasConfig = Boolean(config.url && config.username && config.password);
 
   const connect = useCallback((next: ApiConfig) => {
     setConnecting(true);
@@ -35,8 +36,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!hasConfig) {
+      setConnecting(false);
+      return;
+    }
     connect(config);
-  }, [config, connect]);
+  }, [config, connect, hasConfig]);
 
   useSpatialNav(!playback && !settingsOpen);
 
@@ -61,7 +66,22 @@ export default function App() {
       />
 
       <main className="main">
-        {connecting && !account && (
+        {!hasConfig && (
+          <div className="boot">
+            <h2>Connect your provider</h2>
+            <p>
+              Add your IPTV server address, username and password to start watching. Credentials are stored only in this
+              browser.
+            </p>
+            <div className="boot-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setSettingsOpen(true)}>
+                Add credentials
+              </button>
+            </div>
+          </div>
+        )}
+
+        {hasConfig && connecting && !account && (
           <div className="boot">
             <span className="spinner" aria-hidden="true" />
             <h2>Connecting to your provider</h2>
@@ -69,7 +89,7 @@ export default function App() {
           </div>
         )}
 
-        {!connecting && !account && (
+        {hasConfig && !connecting && !account && (
           <div className="boot">
             <h2>Could not connect</h2>
             <p>{connectionError ?? 'The provider did not accept this account.'}</p>
