@@ -17,9 +17,24 @@ function apiUrl(params){
   return state.server + '/player_api.php?username=' + encodeURIComponent(state.user) + '&password=' + encodeURIComponent(state.pass) + '&' + params;
 }
 async function api(params){
-  const res = await fetch(apiUrl(params));
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  const target = apiUrl(params);
+  // 1) Same-origin Vercel proxy (works on Vercel hosting, no checkbox needed)
+  if(location.protocol.startsWith('http') && location.hostname !== ''){
+    try{
+      const pRes = await fetch('/api/proxy?target=' + encodeURIComponent(target));
+      if(pRes.ok) return await pRes.json();
+    }catch{}
+  }
+  // 2) Direct (works for file:// and http:// LAN use)
+  try{
+    const res = await fetch(target);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  }catch(e){
+    if(location.protocol === 'https:' && state.server.startsWith('http://'))
+      throw new Error('This HTTPS site cannot reach your HTTP provider directly. Redeploy this commit on Vercel so /api/proxy handles it, or use an HTTPS host from your provider.');
+    throw e;
+  }
 }
 function streamUrl(s){
   const base = state.server;
