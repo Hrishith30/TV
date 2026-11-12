@@ -4,8 +4,10 @@ import {
   channelToItem,
   fetchPlaylist,
   loadPlaylists,
+  nameFromFile,
   nameFromLink,
   normalizeLink,
+  parsePlaylistText,
   savePlaylists,
   type PlaylistChannel,
   type SavedPlaylist,
@@ -36,6 +38,7 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
   const [group, setGroup] = useState('all');
   const [pickerOpen, setPickerOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const remember = useCallback((next: SavedPlaylist[]) => {
     setSaved(next);
@@ -51,7 +54,9 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
       setQuery('');
       setGroup('all');
       try {
-        const { parsed } = await fetchPlaylist(playlist.url);
+        const parsed = playlist.text
+          ? parsePlaylistText(playlist.text, playlist.name)
+          : (await fetchPlaylist(playlist.url)).parsed;
         setChannels(parsed.channels);
         if (parsed.kind === 'stream' || playStream) {
           onPlay(parsed.channels.map(channelToItem), 0);
@@ -109,6 +114,34 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
       setLoading(false);
     }
   }, [link, open, onPlay, remember, saved]);
+
+  const importFile = useCallback(
+    async (file: File) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const text = await file.text();
+        const parsed = parsePlaylistText(text, file.name);
+        const entry: SavedPlaylist = {
+          id: newId(),
+          name: nameFromFile(file.name),
+          url: `File · ${file.name}`,
+          count: parsed.channels.length,
+          text,
+        };
+        remember([entry, ...saved.filter((item) => item.url !== entry.url)]);
+        setActiveId(entry.id);
+        setChannels(parsed.channels);
+        setGroup('all');
+        setQuery('');
+      } catch (nextError) {
+        setError((nextError as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [remember, saved],
+  );
 
   const remove = useCallback(
     (id: string) => {
@@ -233,6 +266,29 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
         </button>
       </form>
 
+      <div className="playlist-file">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".m3u,.m3u8,application/vnd.apple.mpegurl,audio/x-mpegurl,text/plain"
+          className="playlist-file-input"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void importFile(file);
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-ghost"
+          disabled={loading}
+          onClick={() => fileRef.current?.click()}
+        >
+          Open .m3u file
+        </button>
+        <small>Downloaded the playlist already? Open it here — files on your device skip browser CORS.</small>
+      </div>
+
       {error && (
         <p className="playlist-error" role="alert">
           {error}
@@ -267,7 +323,7 @@ export function PlaylistsView({ onPlay }: PlaylistsViewProps) {
         <StatePanel
           tone="empty"
           title="No playlists yet"
-          message="Paste an .m3u or .m3u8 link above to play its channels here. Saved links stay in this browser."
+          message="Paste an .m3u or .m3u8 link above, or open a playlist file from your device. Saved playlists stay in this browser."
         />
       )}
 

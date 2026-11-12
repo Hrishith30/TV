@@ -5,6 +5,8 @@ export type SavedPlaylist = {
   name: string;
   url: string;
   count: number;
+  /** Channel list read from a file on the device, so no network fetch is needed. */
+  text?: string;
 };
 
 export type PlaylistChannel = {
@@ -29,7 +31,7 @@ export function loadPlaylists(): SavedPlaylist[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SavedPlaylist[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item) => item && item.url);
+    return parsed.filter((item) => item && (item.url || item.text));
   } catch {
     return [];
   }
@@ -145,6 +147,26 @@ export function parsePlaylist(text: string, sourceUrl: string): ParsedPlaylist {
   }
 
   return { kind: 'channels', channels };
+}
+
+/** Parses playlist text that came from a local file instead of a network fetch. */
+export function parsePlaylistText(text: string, fileName: string): ParsedPlaylist {
+  if (!text.trim()) throw new Error('That file is empty.');
+  if (!/#EXTM3U|#EXTINF|#EXT-X/i.test(text)) throw new Error('That file is not an M3U playlist.');
+  // A dummy absolute base keeps absolute stream URLs intact without a real link.
+  const parsed = parsePlaylist(text, `https://file.local/${encodeURIComponent(fileName)}`);
+  if (parsed.kind === 'stream') {
+    throw new Error(
+      'That file is a single stream, not a channel list. Add its link instead of the file.',
+    );
+  }
+  if (parsed.channels.length === 0) throw new Error('No playable channels were found in that file.');
+  return parsed;
+}
+
+export function nameFromFile(fileName: string) {
+  const base = fileName.replace(/\.(m3u8?|txt)$/i, '').replace(/[_-]+/g, ' ').trim();
+  return base || 'Imported playlist';
 }
 
 export async function fetchPlaylist(link: string): Promise<{ parsed: ParsedPlaylist; url: string }> {
