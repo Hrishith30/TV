@@ -6,7 +6,6 @@ const NAV: Array<{ tab: Tab; label: string; icon: IconName }> = [
   { tab: 'live', label: 'Live TV', icon: 'live' },
   { tab: 'movies', label: 'Movies', icon: 'movies' },
   { tab: 'series', label: 'Series', icon: 'series' },
-  { tab: 'lists', label: 'Playlists', icon: 'list' },
 ];
 
 type SidebarProps = {

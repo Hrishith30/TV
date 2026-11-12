@@ -3,7 +3,6 @@ import { clearCache, loadConfig, saveConfig, xtream } from './api';
 import type { ApiConfig, LoginResponse, PlayItem, Tab } from './types';
 import { LiveView } from './components/LiveView';
 import { MoviesView } from './components/MoviesView';
-import { PlaylistsView } from './components/PlaylistsView';
 import { Player } from './components/Player';
 import { SeriesView } from './components/SeriesView';
 import { Settings } from './components/Settings';
@@ -68,7 +67,7 @@ export default function App() {
       />
 
       <main className="main">
-        {tab !== 'lists' && !hasConfig && (
+        {!hasConfig && (
           <div className="boot">
             <h2>Connect your provider</h2>
             <p>
@@ -83,7 +82,7 @@ export default function App() {
           </div>
         )}
 
-        {tab !== 'lists' && hasConfig && connecting && !account && (
+        {hasConfig && connecting && !account && (
           <div className="boot">
             <span className="spinner" aria-hidden="true" />
             <h2>Connecting to your provider</h2>
@@ -91,7 +90,7 @@ export default function App() {
           </div>
         )}
 
-        {tab !== 'lists' && hasConfig && !connecting && !account && (
+        {hasConfig && !connecting && !account && (
           <div className="boot">
             <h2>Could not connect</h2>
             <p>{connectionError ?? 'The provider did not accept this account.'}</p>
@@ -105,8 +104,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {tab === 'lists' && <PlaylistsView onPlay={handlePlay} />}
 
         {account && (
           <>

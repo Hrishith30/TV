@@ -73,7 +73,7 @@ function focusElement(element: HTMLElement, behavior: ScrollBehavior = 'smooth')
 /** First thing a remote should land on: real content before chrome. */
 function firstTarget(container: HTMLElement) {
   return (
-    container.querySelector<HTMLElement>('.grid button, .picker-row, .list-row') ??
+    container.querySelector<HTMLElement>('.grid button, .picker-row') ??
     container.querySelector<HTMLElement>(FOCUSABLE)
   );
 }
