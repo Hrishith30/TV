@@ -157,16 +157,26 @@ function stopStream(){
   try{ if(state.hls){ state.hls.destroy(); state.hls=null; } }catch{}
   v.pause(); v.removeAttribute('src'); v.load();
 }
+function playableUrl(url){
+  // HTTPS site + HTTP stream = blocked; route via own Vercel proxy (rewrites HLS + ranges)
+  if(location.protocol === 'https:' && /^http:\/\//i.test(url) && location.hostname !== '')
+    return '/api/proxy?target=' + encodeURIComponent(url);
+  return url;
+}
 function playUrl(url){
   stopStream();
   $('playerError').textContent='';
   const v = $('video');
+  url = playableUrl(url);
+  v.poster = '';
   if(url.includes('.m3u8') && window.Hls && Hls.isSupported()){
     const hls = new Hls({maxBufferLength:30});
     state.hls = hls;
     hls.loadSource(url); hls.attachMedia(v);
-    hls.on(Hls.Events.ERROR, (ev,data)=>{ if(data.fatal) $('playerError').textContent='Playback error: '+data.type; });
+    hls.on(Hls.Events.ERROR, (ev,data)=>{ if(data.fatal) $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||''); });
     v.play().catch(()=>{});
+  } else if(url.includes('.m3u8')){
+    v.src = url; v.play().catch(e=>{ $('playerError').textContent='Cannot play: '+e.message; });
   } else {
     v.src = url; v.play().catch(e=>{ $('playerError').textContent='Cannot play: '+e.message; });
   }
