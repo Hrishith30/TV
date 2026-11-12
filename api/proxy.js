@@ -6,9 +6,16 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const headers = { 'User-Agent': 'Mozilla/5.0' };
+    const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': '*/*' };
+    try { headers.Referer = new URL(target).origin + '/'; } catch {}
     if (req.headers.range) headers.Range = req.headers.range;
-    const upstream = await fetch(target, { headers });
+    const upstream = await fetch(target, { headers, redirect: 'follow' });
+    if (!upstream.ok && upstream.status !== 206) {
+      const t = await upstream.text().catch(() => '');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.status(upstream.status).json({ error: 'Upstream HTTP ' + upstream.status, body: t.slice(0, 300) });
+      return;
+    }
     const ct = upstream.headers.get('content-type') || '';
     const isHls = /mpegurl|m3u8/i.test(ct) || /\.m3u8(\?|$)/i.test(target);
     res.setHeader('Access-Control-Allow-Origin', '*');

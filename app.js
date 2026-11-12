@@ -170,10 +170,25 @@ function playUrl(url){
   url = playableUrl(url);
   v.poster = '';
   if(url.includes('.m3u8') && window.Hls && Hls.isSupported()){
-    const hls = new Hls({maxBufferLength:30});
+    const hls = new Hls({maxBufferLength:30, fragLoadingMaxRetry:6, manifestLoadingMaxRetry:2, levelLoadingMaxRetry:4, fragLoadingRetryDelay:800, manifestLoadingRetryDelay:800, timeout:25000});
     state.hls = hls;
+    let nativeFallbackDone = false;
     hls.loadSource(url); hls.attachMedia(v);
-    hls.on(Hls.Events.ERROR, (ev,data)=>{ if(data.fatal) $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||''); });
+    hls.on(Hls.Events.ERROR, (ev,data)=>{
+      if(!data.fatal) return;
+      const code = (data.response && data.response.code) || (data.networkDetails && data.networkDetails.status) || '';
+      console.warn('HLS fatal', data.details, code, data);
+      // One native fallback attempt for frag errors (TVs often handle proxied HLS natively)
+      if(!nativeFallbackDone && /fragLoad|buffer/i.test(data.details||'')){
+        nativeFallbackDone = true;
+        try{ hls.destroy(); }catch{}
+        state.hls = null;
+        v.src = url; v.play().catch(()=>{});
+        $('playerError').textContent='Retrying with native player… (frag failed'+(code?' HTTP '+code:'')+')';
+        return;
+      }
+      $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||'')+(code?' (HTTP '+code+')':'')+'. Provider likely blocks Vercel IPs for video — ask for an HTTPS host or use http:// LAN instead.';
+    });
     v.play().catch(()=>{});
   } else if(url.includes('.m3u8')){
     v.src = url; v.play().catch(e=>{ $('playerError').textContent='Cannot play: '+e.message; });
