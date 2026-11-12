@@ -16,38 +16,10 @@ function cleanServer(u){
 function apiUrl(params){
   return state.server + '/player_api.php?username=' + encodeURIComponent(state.user) + '&password=' + encodeURIComponent(state.pass) + '&' + params;
 }
-const PROXIES = [
-  (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-  (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
-  (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
-];
-async function fetchJson(url){
-  const res = await fetch(url);
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  const txt = await res.text();
-  try { return JSON.parse(txt); } catch { throw new Error('Server did not return JSON (wrong URL or provider blocked).'); }
-}
 async function api(params){
-  const target = apiUrl(params);
-  const mixedHttp = location.protocol === 'https:' && state.server.startsWith('http://');
-  // Build attempt list: direct first (unless proxy forced or mixed content), then proxies
-  const attempts = [];
-  if(!state.useProxy && !mixedHttp) attempts.push({name:'direct', url: target});
-  PROXIES.forEach((fn, i) => attempts.push({name:'proxy'+(i+1), url: fn(target)}));
-  if(!state.useProxy && mixedHttp) attempts.push({name:'direct', url: target}); // last resort for diagnostics
-  let lastErr = null;
-  for(const a of attempts){
-    try { return await fetchJson(a.url); }
-    catch(e){ lastErr = e; console.warn('API attempt failed', a.name, e); }
-  }
-  const msg = String((lastErr && lastErr.message) || lastErr);
-  if(/failed to fetch|networkerror|load failed/i.test(msg)) throw new Error(friendlyFetchError() + ' Tried direct + ' + PROXIES.length + ' proxies. Last: ' + msg);
-  throw lastErr;
-}
-function friendlyFetchError(){
-  if(location.protocol === 'https:' && state.server.startsWith('http://'))
-    return 'HTTPS page cannot reach your HTTP:// server directly, and all proxies failed. Ask your provider for an HTTPS host/port (443/2083/2096), or open the site via HTTP/localhost instead.';
-  return 'All routes blocked (CORS/network). Your provider may be offline, URL wrong, or proxies blocked. Check server URL exactly (http/https + port).';
+  const res = await fetch(apiUrl(params));
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
 }
 function streamUrl(s){
   const base = state.server;
@@ -72,7 +44,6 @@ async function login(){
   state.server = cleanServer($('serverUrl').value);
   state.user = $('username').value.trim();
   state.pass = $('password').value;
-  state.useProxy = $('useProxy') ? $('useProxy').checked : false;
   if(!state.server || !state.user || !state.pass){ err.textContent = 'Please fill server, username and password.'; return; }
   $('loginBtn').textContent = 'Connecting...'; $('loginBtn').disabled = true;
   try{
@@ -82,7 +53,7 @@ async function login(){
       const d = new Date(info.user_info.exp_date*1000);
       $('statusBar').textContent = 'Account: ' + info.user_info.username + ' | Expires: ' + d.toLocaleDateString();
     }
-    if($('remember').checked) localStorage.setItem('iptv_login', JSON.stringify({s:state.server,u:state.user,p:state.pass,x:state.useProxy?1:0}));
+    if($('remember').checked) localStorage.setItem('iptv_login', JSON.stringify({s:state.server,u:state.user,p:state.pass}));
     else localStorage.removeItem('iptv_login');
     $('loginScreen').classList.remove('active');
     $('appScreen').classList.add('active');
@@ -91,7 +62,7 @@ async function login(){
   }catch(e){
     console.error(e);
     const msg = String((e && e.message) || e);
-    err.textContent = 'Login failed: ' + (/failed to fetch/i.test(msg) ? friendlyFetchError() + ' (' + msg + ')' : msg);
+    err.textContent = 'Login failed: ' + msg;
   }finally{
     $('loginBtn').textContent = 'Connect & Load'; $('loginBtn').disabled = false;
   }
@@ -283,7 +254,7 @@ function handleTvArrows(e){
 }
 window.addEventListener('DOMContentLoaded', ()=>{
   const saved = localStorage.getItem('iptv_login');
-  if(saved){ try{ const o=JSON.parse(saved); $('serverUrl').value=o.s||''; $('username').value=o.u||''; $('password').value=o.p||''; if($('useProxy')) $('useProxy').checked=!!o.x; }catch{} }
+  if(saved){ try{ const o=JSON.parse(saved); $('serverUrl').value=o.s||''; $('username').value=o.u||''; $('password').value=o.p||''; }catch{} }
   $('loginBtn').onclick = login;
   document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>loadSection(b.dataset.type));
   $('search').oninput = (e)=>{ state.query=e.target.value.trim(); renderGrid(); };

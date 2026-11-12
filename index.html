@@ -28,15 +28,12 @@
     <label class="row check">
       <input id="remember" type="checkbox" checked /> Remember me on this device
     </label>
-    <label class="row check">
-      <input id="useProxy" type="checkbox" /> Use CORS proxy (needed for GitHub Pages)
-    </label>
     <button id="loginBtn" class="btn primary">Connect & Load</button>
     <p id="loginError" class="error"></p>
     <details class="hint">
       <summary>Where do I find these?</summary>
       <p>From your IPTV provider you get 3 things: a <b>Server URL / Host / Portal</b> (e.g. <code>http://line.example.com:8080</code>), a <b>Username</b> and a <b>Password</b>. Paste them exactly. No playlist file needed.</p>
-      <p>If login fails with a network/CORS error, enable the "Use CORS proxy" checkbox that appears, or host this file on the same domain as your provider.</p>
+      <p>If login fails with a network error, make sure the Server URL includes http:// or https:// and the correct port, or host this file on the same domain as your provider.</p>
     </details>
   </div>
 </div>
