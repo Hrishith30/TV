@@ -187,7 +187,18 @@ function playUrl(url){
         $('playerError').textContent='Retrying with native player… (frag failed'+(code?' HTTP '+code:'')+')';
         return;
       }
-      $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||'')+(code?' (HTTP '+code+')':'')+'. Provider likely blocks Vercel IPs for video — ask for an HTTPS host or use http:// LAN instead.';
+      $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||'')+(code?' (HTTP '+code+')':'')+'. Checking reason…';
+      // Fetch manifest once more to surface provider's real message (401 body)
+      fetch(url).then(async (r)=>{
+        const t = await r.text().catch(()=> '');
+        let msg = t.slice(0, 220);
+        try { const j = JSON.parse(t); if(j.body) msg = String(j.body).slice(0, 220); else if(j.error) msg = String(j.error).slice(0, 220); } catch {}
+        // Hide password-like tokens from screen
+        msg = msg.replace(/(password=|\/)[^\s&/]{8,}/gi, '$1***');
+        $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||'')+(code?' (HTTP '+code+')':'')+'. Upstream says: '+msg;
+      }).catch(()=>{
+        $('playerError').textContent='Playback error: '+data.type+' — '+(data.details||'')+(code?' (HTTP '+code+')':'')+'. Provider blocks this stream (401 = bad user/pass for streams, or IP-/UA-blocked video).';
+      });
     });
     v.play().catch(()=>{});
   } else if(url.includes('.m3u8')){
