@@ -1,94 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Simple IPTV Player — Xtream Codes</title>
-<link rel="stylesheet" href="style.css" />
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
-</head>
-<body>
-
-<!-- LOGIN SCREEN -->
-<div id="loginScreen" class="screen active">
-  <div class="login-card">
-    <div class="welcome-badge">✦ Welcome</div>
-    <div class="logo">📺 <span>SimpleIPTV</span></div>
-    <p class="subtitle">Xtream Codes Player for Mobile • Tablet • Laptop • TV</p>
-    <div class="device-row"><span>Mobile</span><span>Tablet</span><span>Laptop</span><span>TV</span></div>
-    <label>Server URL (Xtream / Portal)
-      <input id="serverUrl" type="url" inputmode="url" placeholder="http://example.com:8080" autocomplete="url" />
-    </label>
-    <label>Username
-      <input id="username" type="text" placeholder="Username" autocomplete="username" />
-    </label>
-    <label>Password
-      <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
-    </label>
-    <label>Proxy URL (optional)
-      <input id="proxyUrl" type="url" inputmode="url" placeholder="https://your-proxy.example.com" autocomplete="off" />
-    </label>
-    <p class="field-note">GitHub Pages is static and can't run <code>/api/proxy</code>. If your provider is HTTP-only, point this at an HTTPS address that does (see README). Leave empty otherwise.</p>
-    <label class="row check">
-      <input id="remember" type="checkbox" checked /> Remember me on this device
-    </label>
-    <button id="loginBtn" class="btn primary">Connect & Load</button>
-    <p id="loginError" class="error"></p>
-    <details class="hint">
-      <summary>Where do I find these?</summary>
-      <p>From your IPTV provider you get 3 things: a <b>Server URL / Host / Portal</b> (e.g. <code>http://line.example.com:8080</code>), a <b>Username</b> and a <b>Password</b>. Paste them exactly. No playlist file needed.</p>
-      <p>If login fails with a network error, make sure the Server URL includes http:// or https:// and the correct port. If you host this on GitHub Pages and your provider only speaks HTTP, set the Proxy URL as described in the README.</p>
-    </details>
-  </div>
-</div>
-
-<!-- MAIN APP -->
-<div id="appScreen" class="screen">
-  <header class="topbar">
-    <button id="menuBtn" class="icon-btn" aria-label="Categories">☰</button>
-    <div class="logo small">📺 <span>SimpleIPTV</span></div>
-    <div class="search-wrap">
-      <input id="search" type="search" placeholder="Search channels, movies, series…" autocomplete="off" />
-    </div>
-    <button id="favBtn" class="icon-btn" title="Favorites only">☆</button>
-    <button id="logoutBtn" class="icon-btn" title="Logout">⏻</button>
-  </header>
-
-  <nav class="tabs" role="tablist">
-    <button data-type="live" class="tab active">Live TV</button>
-    <button data-type="movie" class="tab">Movies</button>
-    <button data-type="series" class="tab">Series</button>
-  </nav>
-
-  <div class="layout">
-    <aside id="sidebar">
-      <div class="side-head">Categories <button id="closeSide" type="button" class="icon-btn">✕</button></div>
-      <input id="catSearch" type="search" placeholder="Filter categories…" autocomplete="off" />
-      <ul id="catList"></ul>
-    </aside>
-    <div id="backdrop" class="backdrop"></div>
-
-    <main id="content">
-      <div id="statusBar" class="status"></div>
-      <div id="loader" class="loader hidden"><div class="spinner"></div><p>Loading…</p></div>
-      <div id="grid" class="grid"></div>
-    </main>
-  </div>
-</div>
-
-<!-- PLAYER OVERLAY -->
-<div id="playerOverlay" class="player-overlay" aria-hidden="true">
-  <div class="player-top">
-    <button id="backBtn" class="btn">← Back</button>
-    <div id="nowTitle" class="now-title">—</div>
-    <button id="favToggle" class="btn">☆ Fav</button>
-  </div>
-  <video id="video" controls playsinline preload="auto"></video>
-  <div id="epgBox" class="epg"></div>
-  <div id="seriesBox" class="series-box"></div>
-  <div id="playerError" class="error center"></div>
-</div>
-
-<script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#07090e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="Nova TV — live channels, movies and series on every screen." />
+    <title>Nova TV — IPTV Player</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

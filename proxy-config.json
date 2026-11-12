@@ -1,4 +1,0 @@
-{
-  "_note": "Optional. Set proxy to an HTTPS origin that serves /api/proxy (for example https://iptv-proxy.example.com). Leave empty to talk to the provider directly. A ?proxy=... URL parameter or the Proxy URL field on the login screen overrides this.",
-  "proxy": ""
-}
