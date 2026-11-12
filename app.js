@@ -178,19 +178,29 @@ function httpsCandidates(httpUrl){
   }catch{ return []; }
 }
 async function probeDirectHttps(httpUrl){
-  // Browser-direct probe (home IP). HLS needs CORS anyway, so a readable playlist = playable.
-  for(const c of httpsCandidates(httpUrl)){
+  // Browser-direct probe (home IP), all ports in parallel. HLS needs CORS anyway, so a readable playlist = playable.
+  const tries = httpsCandidates(httpUrl).map((c)=>(async()=>{
+    const ctl = new AbortController();
+    const t = setTimeout(()=>ctl.abort(), 3500);
     try{
-      const ctl = new AbortController();
-      const t = setTimeout(()=>ctl.abort(), 5000);
       const r = await fetch(c, { signal: ctl.signal });
       clearTimeout(t);
-      if(!r.ok) continue;
+      if(!r.ok) return null;
       const txt = await r.text();
-      if(txt.includes('#EXTM3U')) return c;
-    }catch{ /* try next port */ }
-  }
-  return null;
+      return txt.includes('#EXTM3U') ? c : null;
+    }catch{ clearTimeout(t); return null; }
+  })());
+  const results = await Promise.all(tries);
+  return results.find(Boolean) || null;
+}
+function b64(s){
+  // Xtream EPG fields arrive base64-encoded; leave plain text untouched
+  s = String(s == null ? '' : s).trim();
+  if(!s || s.length % 4 !== 0 || !/^[A-Za-z0-9+/=]+$/.test(s)) return s;
+  try{
+    const bin = atob(s);
+    return new TextDecoder().decode(Uint8Array.from(bin, (c)=>c.charCodeAt(0)));
+  }catch{ return s; }
 }
 function playMp4List(v, list, idx){
   if(idx >= list.length){
@@ -310,7 +320,7 @@ async function loadEpg(streamId){
     const data = await api('action=get_short_epg&stream_id='+streamId);
     const list = (data && data.epg_listings) || [];
     if(!list.length) return;
-    box.innerHTML = list.slice(0,4).map(e=>'<div><b>'+escapeHtml(e.title||'')+'</b> — '+escapeHtml(e.start||'')+' → '+escapeHtml(e.stop||'')+'<br>'+escapeHtml((e.description||'').slice(0,200))+'</div>').join('');
+    box.innerHTML = list.slice(0,4).map(e=>'<div><b>'+escapeHtml(b64(e.title))+'</b> — '+escapeHtml(b64(e.start))+' → '+escapeHtml(b64(e.stop))+'<br>'+escapeHtml(b64(e.description).slice(0,200))+'</div>').join('');
     if(box.innerHTML) box.style.display = '';
   }catch{ box.style.display = 'none'; box.innerHTML=''; }
 }
