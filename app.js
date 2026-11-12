@@ -16,19 +16,38 @@ function cleanServer(u){
 function apiUrl(params){
   return state.server + '/player_api.php?username=' + encodeURIComponent(state.user) + '&password=' + encodeURIComponent(state.pass) + '&' + params;
 }
-function fetchUrl(url){
-  if(state.useProxy) return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-  return url;
+const PROXIES = [
+  (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+  (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+];
+async function fetchJson(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const txt = await res.text();
+  try { return JSON.parse(txt); } catch { throw new Error('Server did not return JSON (wrong URL or provider blocked).'); }
 }
 async function api(params){
-  const res = await fetch(fetchUrl(apiUrl(params)));
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
+  const target = apiUrl(params);
+  const mixedHttp = location.protocol === 'https:' && state.server.startsWith('http://');
+  // Build attempt list: direct first (unless proxy forced or mixed content), then proxies
+  const attempts = [];
+  if(!state.useProxy && !mixedHttp) attempts.push({name:'direct', url: target});
+  PROXIES.forEach((fn, i) => attempts.push({name:'proxy'+(i+1), url: fn(target)}));
+  if(!state.useProxy && mixedHttp) attempts.push({name:'direct', url: target}); // last resort for diagnostics
+  let lastErr = null;
+  for(const a of attempts){
+    try { return await fetchJson(a.url); }
+    catch(e){ lastErr = e; console.warn('API attempt failed', a.name, e); }
+  }
+  const msg = String((lastErr && lastErr.message) || lastErr);
+  if(/failed to fetch|networkerror|load failed/i.test(msg)) throw new Error(friendlyFetchError() + ' Tried direct + ' + PROXIES.length + ' proxies. Last: ' + msg);
+  throw lastErr;
 }
 function friendlyFetchError(){
   if(location.protocol === 'https:' && state.server.startsWith('http://'))
-    return 'Browser blocked HTTP server on this HTTPS page (mixed content). Tick "Use CORS proxy" and retry, or ask your provider for an HTTPS host.';
-  return 'Browser blocked the request (CORS). Tick "Use CORS proxy" and retry.';
+    return 'HTTPS page cannot reach your HTTP:// server directly, and all proxies failed. Ask your provider for an HTTPS host/port (443/2083/2096), or open the site via HTTP/localhost instead.';
+  return 'All routes blocked (CORS/network). Your provider may be offline, URL wrong, or proxies blocked. Check server URL exactly (http/https + port).';
 }
 function streamUrl(s){
   const base = state.server;
