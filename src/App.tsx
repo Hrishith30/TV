@@ -8,6 +8,7 @@ import { SeriesView } from './components/SeriesView';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { useSpatialNav } from './hooks/useSpatialNav';
+import { useKeepAwake } from './hooks/useKeepAwake';
 
 export default function App() {
   const [config, setConfig] = useState<ApiConfig>(loadConfig);
@@ -44,6 +45,9 @@ export default function App() {
   }, [config, connect, hasConfig]);
 
   useSpatialNav(!playback && !settingsOpen);
+  // A playing stream already keeps the display on, so the silent clip only runs
+  // while browsing.
+  useKeepAwake({ fallback: !playback });
 
   const handleSave = (next: ApiConfig) => {
     clearCache();
